@@ -9,11 +9,6 @@ def crop_image_with_box(img, box, padding=5):
     y2 = min(y2 + padding, h)
     return img[y1:y2, x1:x2]
 
-# def draw_box_and_label(img, box, label):
-#     x1, y1, x2, y2 = map(int, box)
-#     cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
-#     cv2.putText(img, label, (x1, y1 - 10),
-#                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
 
 def draw_box_and_label(image, xyxy, label, fields=None):
     x1, y1, x2, y2 = xyxy
@@ -22,12 +17,8 @@ def draw_box_and_label(image, xyxy, label, fields=None):
 
     text_lines = [f"{label}"]
     if fields:
-        if fields.get("container_code"):
-            text_lines.append(f"Code: {fields['container_code']}")
-        if fields.get("gross_weight"):
-            text_lines.append(f"Gross: {fields['gross_weight']}kg")
-        if fields.get("tare_weight"):
-            text_lines.append(f"Tare: {fields['tare_weight']}kg")
+        if fields.get("text"):
+            text_lines.append(fields['text'])
 
     y_offset = y1 - 10
     for line in text_lines:

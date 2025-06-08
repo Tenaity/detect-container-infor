@@ -1,53 +1,63 @@
-# 📁 container_ocr_v2/main.py
-
-from ultralytics import YOLO
 import cv2
 import os
 import pytesseract
-import re
-from utils import crop_image_with_box, draw_box_and_label
+import torch
+from PIL import Image
+from ultralytics import YOLO
+from transformers import TrOCRProcessor, VisionEncoderDecoderModel
+from utils import crop_image_with_box
 from preprocessing import clean_ocr_image
 
 # --- CONFIG ---
-MODEL_PATH = "/Users/tenaity/Documents/MSE/asignment/yolo_runs/container-code-detector-v1/weights/best.pt"
+MODEL_PATH = "/Users/tenaity/Documents/MSE/asignment/yolo_runs/v3/weights/best.pt"
 IMAGE_PATH = '/Users/tenaity/Documents/MSE/asignment/test_image'
-DEVICE = "mps"  # For Macbook M1/M2, use "mps" for Metal Performance Shaders
+DEVICE = "mps"
 OUTPUT_DIR = "output"
-
-# --- INITIALIZE ---
-model = YOLO(MODEL_PATH)
-model.to(DEVICE)
-
-# --- OCR LOGIC ---
-def extract_text(img):
-    config = r"--oem 3 --psm 6 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789./\n"
-    text = pytesseract.image_to_string(img, config=config)
-    return text
-
-def extract_fields(text):
-    container_code = re.findall(r"[A-Z]{4}\s?\d{6}\s?\d", text.upper())
-    tare_weight = re.findall(r"TARE[^\d]*(\d+[\.,]?\d*)\s*(KGS|KG)?", text.upper())
-    gross_weight = re.findall(r"GROSS[^\d]*(\d+[\.,]?\d*)\s*(KGS|KG)?", text.upper())
-    return {
-        "container_code": container_code[0] if container_code else "",
-        "tare_weight": tare_weight[0][0] if tare_weight else "",
-        "gross_weight": gross_weight[0][0] if gross_weight else ""
-    }
-
-# --- PROCESS ---
 os.makedirs(OUTPUT_DIR, exist_ok=True)
-results = []
 
+# --- Initialize models ---
+print("[INFO] Loading detection model...")
+model = YOLO(MODEL_PATH).to(DEVICE)
+
+print("[INFO] Loading TrOCR model...")
+processor = TrOCRProcessor.from_pretrained('microsoft/trocr-base-printed')
+trocr_model = VisionEncoderDecoderModel.from_pretrained('microsoft/trocr-base-printed')
+trocr_model.eval()
+
+# --- OCR functions ---
+def tesseract_ocr(image):
+    config = r"--oem 3 --psm 6 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    return pytesseract.image_to_string(image, config=config).strip()
+
+
+def trocr_ocr(image):
+    # Convert to RGB PIL Image
+    if image.ndim == 2:  # grayscale
+        img_rgb = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
+    elif image.shape[2] == 1:
+        img_rgb = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
+    else:
+        img_rgb = image
+
+    pil_img = Image.fromarray(img_rgb)
+
+    # Preprocess
+    inputs = processor(images=pil_img, return_tensors="pt") # type: ignore
+    with torch.no_grad():
+        generated_ids = trocr_model.generate(**inputs) # type: ignore
+
+    generated_text = processor.batch_decode(generated_ids, skip_special_tokens=True)[0] # type: ignore
+    return generated_text.strip()
+
+# --- Main pipeline ---
 for fname in os.listdir(IMAGE_PATH):
     if not fname.lower().endswith((".jpg", ".jpeg", ".png")):
         continue
 
+    print(f"\n📷 Processing {fname}...")
     img_path = os.path.join(IMAGE_PATH, fname)
     image = cv2.imread(img_path)
-    print(f"\n📷 Processing {fname}...")
-
     detections = model(image)[0]
-    result = {"image": fname, "fields": []}
 
     for box in detections.boxes:
         cls = int(box.cls.item())
@@ -56,16 +66,16 @@ for fname in os.listdir(IMAGE_PATH):
 
         cropped = crop_image_with_box(image, xyxy)
         cleaned = clean_ocr_image(cropped)
-        text = extract_text(cleaned)
-        fields = extract_fields(text)
 
-        result["fields"].append({"label": label, "text": text.strip(), **fields})
-        draw_box_and_label(image, xyxy, label, fields)
+        tess = tesseract_ocr(cleaned)
+        trocr = trocr_ocr(cleaned)
 
-    results.append(result)
+        print(f"📌 Field: {label}")
+        print(f"  - Tesseract: {tess}")
+        print(f"  - TrOCR:     {trocr}")
 
-    output_file = os.path.join(OUTPUT_DIR, f"annotated_{fname}")
-    cv2.imwrite(output_file, image)
-    print(f"[INFO] Saved to {output_file}")
+        # Optional: save annotated crops for reference
+        out_path = os.path.join(OUTPUT_DIR, f"{fname.replace('.jpg','')}_{label}.jpg")
+        cv2.imwrite(out_path, cropped)
 
 print("\n✅ DONE. Check output/ folder.")

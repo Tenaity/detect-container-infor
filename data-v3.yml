@@ -1,0 +1,7 @@
+path: /content/drive/MyDrive/Colab Notebooks/yolo_datasets_v2_aug
+train: train/images
+val: valid/images
+test: test/images
+
+nc: 4
+names: ["dv", "owner", "serial", "size"]

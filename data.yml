@@ -1,7 +1,7 @@
 path: /Users/tenaity/Documents/MSE/asignment
-train: images/train
-val: images/train
-names:
-  0: container_code
-  1: gross_weight
-  2: tare_weight
+train: train/images
+val: valid/images
+test: test/images
+
+nc: 4
+names: ["dv", "owner", "serial", "size"]

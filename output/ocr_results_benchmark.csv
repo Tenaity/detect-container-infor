@@ -1,0 +1,8 @@
+image,ground_truth,field,tesseract,tesseract_time,trocr,trocr_time
+egsu3328480.jpg,egsu3328480,size,2261,0.231,22G1,3.749
+egsu3328480.jpg,egsu3328480,serial,99284800,0.084,33284810,0.928
+egsu3328480.jpg,egsu3328480,owner,EGSU,0.076,EGSU,0.69
+image.png,image,size,22G1,0.095,22G1,0.859
+image.png,image,serial,332848,0.087,332848,0.841
+image.png,image,owner,EGSU,0.08,EGSU,0.702
+image.png,image,dv,4,0.08,0,0.551
